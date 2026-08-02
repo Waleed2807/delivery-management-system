@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en">
+<style>
+    .table-container {
+        max-width: 80vw;
+        margin: 30px auto 0;
+    }
+
+    .err {
+        width: 75%;
+        visibility: hidden;
+        margin: 0 auto;
+        margin-top: 10px;
+    }
+
+    .success {
+        width: 75%;
+        visibility: hidden;
+        margin: 0 auto;
+    }
+</style>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link href='http://fonts.googleapis.com/css?family=Oleo+Script' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://openlayers.org/en/v4.6.5/css/ol.css" type="text/css">
+
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-light bg-light">
+    <?php echo '<h3>Welcome, '.$_SESSION["login"].'!</h3>' ?>
+    <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+        <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav mr-auto">
+        </ul>
+        <form method="POST" action="/clientserver/index.php" class="form-inline">
+            <button class="btn btn-outline-primary my-2 my-sm-0" name="logoutbutton" type="submit">Logout</button>
+        </form>
+    </div>
+</nav>
+<div class="alert err alert-danger" id="err" role="alert">
+    An error occurred, please try again later.
+</div>
+<div class="alert success alert-success" id="success" role="alert">
+    Successfully updated table.
+</div>
+
+<div class="table-container">
+    <form style="margin-top:50px;" method="POST">
+        <div class="form-row">
+            <div class="form-group col-md-4" style="max-width:300px;">
+                <input class="form-control" type="text" name="search" onkeyup="showHint(this.value)" id="search" placeholder="Search">
+                <ul class="list-group" id="txtHint"
+                    style="position: absolute;
+                    background-color: white;
+                    overflow-y: auto;
+                    overflow-x: hidden;
+                    box-sizing: border-box;
+                    z-index: 1000;
+                    max-height: 400px;">
+                </ul>
+            </div>
+            <div class="form-group col-md-3" style="max-width:200px;">
+                <select id="filter" name="filter" class="form-control">
+                    <option value="Latest" <?php echo ($filter == 'Latest') ? 'selected' : ''; ?>>Latest</option>
+                    <option value="Oldest" <?php echo ($filter == 'Oldest') ? 'selected' : ''; ?>>Oldest</option>
+                    <option value="Name" <?php echo ($filter == 'Name') ? 'selected' : ''; ?>>Name</option>
+                    <option value="Delivered" <?php echo ($filter == 'Delivered') ? 'selected' : ''; ?>>Delivered</option>
+                    <option value="Not Delivered" <?php echo ($filter == 'Not Delivered') ? 'selected' : ''; ?>>Not Delivered</option>
+                </select>
+            </div>
+            <div class="form-group col-md-2">
+                <button type="submit" name="filter_search" class="btn btn-primary">Apply Filter</button>
+            </div>
+            <div class="form-group col-md-auto ml-auto">
+                <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#deliveryModal">New Delivery</button>
+            </div>
+        </div>
+    </form>
+
+    <table class="table table-striped">
+        <thead>
+        <th scope="col">ID</th>
+        <th scope="col">Name</th>
+        <th scope="col">Address</th>
+        <th scope="col">Address 2</th>
+        <th scope="col">Postcode</th>
+        <th scope="col">Deliverer</th>
+        <th scope="col">Latitude</th>
+        <th scope="col">Longitude</th>
+        <th scope="col">Status</th>
+        <th scope="col">Edit</th>
+        </thead>
+        <tbody>
+        <?php foreach ($deliveryPoints as $point): ?>
+            <tr>
+                <td><?php echo htmlspecialchars($point->getId()); ?></td>
+                <td><?php echo htmlspecialchars($point->getName()); ?></td>
+                <td><?php echo htmlspecialchars($point->getAddress1()); ?></td>
+                <td><?php echo htmlspecialchars($point->getAddress2()); ?></td>
+                <td><?php echo htmlspecialchars($point->getPostcode()); ?></td>
+                <td><?php echo htmlspecialchars($usernames[$point->getDeliverer()]); ?></td>
+                <td><?php echo htmlspecialchars($point->getLat()); ?></td>
+                <td><?php echo htmlspecialchars($point->getLng()); ?></td>
+                <td><?php
+                    switch ($point->getStatus()) {
+                        case 1:
+                            echo "Label Printed";
+                            break;
+                        case 2:
+                            echo "Shipped";
+                            break;
+                        case 3:
+                            echo "Out for Delivery";
+                            break;
+                        case 4:
+                            echo "Delivered";
+                            break;
+                        case 5:
+                            echo "Exception";
+                            break;
+                        default:
+                            echo "Undelivered";
+                    }
+                    ?></td>
+                <td>
+                    <select class="form-control" id="edit<?php echo $point->getId(); ?>" onchange="handleSelection(this.value, <?php echo $point->getId(); ?>)">
+                        <option value="">Select</option>
+                        <option value="update">Update</option>
+                        <option value="delete">Delete</option>
+                        <option value="assign">Assign Deliverer</option>
+                    </select>
+                </td>
+            </tr>
+        <?php endforeach; ?>
+        </tbody>
+    </table>
+    <nav aria-label="Page navigation">
+        <ul class="pagination">
+            <?php if ($current_page > 1): ?>
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">First</a>
+                </li>
+            <?php endif; ?>
+
+            <?php if ($current_page > 1): ?>
+                <li class="page-item">
+                    <a class="page-link" href="?page=<?php echo $current_page - 1; ?>">Previous</a>
+                </li>
+            <?php endif; ?>
+
+            <?php
+            $start = max(1, $current_page - 2);
+            $end = min($totalPages, $current_page + 2);
+            if ($start > 1): ?>
+                <li class="page-item">
+                    <a class="page-link" href="?page=1">1</a>
+                </li>
+                <?php if ($start > 2): ?>
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                <?php endif; ?>
+            <?php endif;
+            for ($i = $start; $i <= $end; $i++): ?>
+                <li class="page-item <?php echo ($i == $current_page ? 'active' : ''); ?>">
+                    <a class="page-link" href="?page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                </li>
+            <?php endfor;
+            if ($end < $totalPages): ?>
+                <?php if ($end < $totalPages - 1): ?>
+                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                <?php endif; ?>
+                <li class="page-item">
+                    <a class="page-link" href="?page=<?php echo $totalPages; ?>"><?php echo $totalPages; ?></a>
+                </li>
+            <?php endif; ?>
+
+            <?php if ($current_page < $totalPages): ?>
+                <li class="page-item">
+                    <a class="page-link" href="?page=<?php echo $current_page + 1; ?>">Next</a>
+                </li>
+            <?php endif; ?>
+
+            <?php if ($current_page < $totalPages): ?>
+                <li class="page-item">
+                    <a class="page-link" href="?page=<?php echo $totalPages; ?>">Last</a>
+                </li>
+            <?php endif; ?>
+        </ul>
+    </nav>
+</div>
+<div id="map" style="height: 400px;"></div>
+<div class="modal fade" id="deliveryModal" tabindex="-1" role="dialog" aria-labelledby="deliveryModal" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="deliveryModalLabel">New Delivery</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form method="POST">
+                    <div class="form-group">
+                        <label for="fullName">Full Name</label>
+                        <input type="text" class="form-control" name="name"  placeholder="John Doe">
+                    </div>
+                    <div class="form-group">
+                        <label for="address_1">Address</label>
+                        <input type="text" class="form-control" name="address_1"  placeholder="43 Crescent">
+                    </div>
+                    <div class="form-group">
+                        <label for="address_2">City</label>
+                        <input type="text" class="form-control" name="address_2"  placeholder="Salford">
+                    </div>
+                    <div class="form-group">
+                        <label for="postcode">Postcode</label>
+                        <input type="text" class="form-control" name="postcode"  placeholder="M5 4WT">
+                    </div>
+                    <button type="submit" name="newDelivery" class="btn btn-primary">Add</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="updateModal" tabindex="-1" role="dialog" aria-labelledby="updateModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="updateModalLabel">Update Record</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="updateForm">
+                    <input class="form-control" type="number" id="id_update" name="id_update" placeholder="" readonly>
+                    <label>Full Name</label>
+                    <input type="text" id="name_update" name="name_update" class="form-control">
+                    <label>Address</label>
+                    <input type="text" id="address_1_update" name="address_1_update" class="form-control">
+                    <label>City</label>
+                    <input type="text" id="address_2_update" name="address_2_update" class="form-control">
+                    <label>Postcode</label>
+                    <input type="text" id="postcode_update" name="postcode_update" class="form-control">
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" onclick="updateRecord()">Save changes</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="assignDelivererModal" tabindex="-1" role="dialog" aria-labelledby="assignDelivererLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="assignDeliverer">Assign Deliverer</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="assignDeliverer">
+                    <input class="form-control" type="number" id="id_deliverer" name="id_deliver" readonly>
+                    <label>Deliverer</label>
+                    <select class="form-control" id="delivererList'" onchange="updateDeliverer(this.value)">
+                        <option>Select</option>
+                        <?php
+                        foreach ($usernames as $index => $username) {
+                            echo '<option value="' . $index . '">' . $username . '</option>' . PHP_EOL;
+                        }
+                        ?>
+                    </select>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</script>
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.7/dist/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.3.1/dist/js/bootstrap.min.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="js/OpenLayers-2.13.1/OpenLayers.js"></script>
+<script src="https://openlayers.org/en/v4.6.5/build/ol.js"></script>
+<script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script> <!-- QR Code library -->
+<script src="js/Map.js"</script>
+<script src="https://cdn.rawgit.com/davidshimjs/qrcodejs/gh-pages/qrcode.min.js"></script>
+<script src="js/LiveSearch.js"></script>
+<script>
+     function handleSelection(value, id) {
+            if (value === "delete") {
+                if(confirm("Are you sure you wish to delete this record?")) {
+                    window.location.href = 'deleteRecord.php?id=' + id;
+                }
+            } else if (value === 'update') {
+                $('#updateModal').modal('show');
+                fetchRecordData(id, false);
+            } else if (value === 'assign') {
+                $('#assignDelivererModal').modal('show');
+                fetchRecordData(id, true)
+            }
+            document.getElementById('edit' + id).value = '';
+        }
+
+        function fetchRecordData(id, onlyId) {
+            fetch('getRecord.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: 'id=' + id
+            })
+                .then(response => response.json())
+                .then(data => {
+                    if (onlyId === true) {
+                        document.getElementById('id_deliverer').value = id;
+                    } else {
+                        document.getElementById('id_update').value = id;
+                        document.getElementById('name_update').value = data.name;
+                        document.getElementById('address_1_update').value = data.address_1;
+                        document.getElementById('address_2_update').value = data.address_2;
+                        document.getElementById('postcode_update').value = data.postcode;
+                    }
+                })
+                .catch(error => console.error('Error:', error));
+        }
+
+        function updateDeliverer(value) {
+            const data = {
+                id: document.getElementById('id_deliverer').value,
+                deliverer: value,
+            }
+            fetch('updateDeliverer.php', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            }).then(response => response.text())
+                .then(text => {
+                    $('#assignDelivererModal').modal('hide');
+                    window.location.reload()
+                })
+                .catch(error => {
+                    console.error(error)
+                })
+        }
+
+        function updateRecord() {
+            const data = {
+                id: document.getElementById('id_update').value,
+                name: document.getElementById('name_update').value,
+                address_1: document.getElementById('address_1_update').value,
+                address_2: document.getElementById('address_2_update').value,
+                postcode: document.getElementById('postcode_update').value
+            }
+            fetch('updateRecord.php', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            }).then(response => response.text())
+                .then(text => {
+                    $('#updateModal').modal('hide');
+                    window.location.reload()
+                })
+                .catch(error => {
+                    console.error(error)
+                })
+        }
+</script>
+<script>
+    var locations = [
+        <?php foreach ($deliveryPoints as $point): ?>
+        {
+            address: "<?php echo htmlspecialchars($point->getAddress1() . ', ' . $point->getAddress2()); ?>",
+            lat: <?php echo $point->getLat(); ?>,
+            lng: <?php echo $point->getLng(); ?>,
+            status: "<?php echo $point->getStatus(); ?>"
+        },
+        <?php endforeach; ?>
+    ];
+</script>
+</body>
+</html>
+</body>
+</html>
